@@ -5,9 +5,32 @@ name: Custom server build.
 #
 # Run it from the Actions tab ("Run workflow") or push to the custom-server
 # branch. No local Visual Studio installation is required.
+#
+# The server address is an input: leave the fields empty to build the address
+# compiled into Telegram/SourceFiles/mtproto/mtproto_dc_options.cpp (the values
+# below in DC_IP_DEFAULT / DC_PORT_DEFAULT, keep them in sync with it).
 
 on:
   workflow_dispatch:
+    inputs:
+      dc_ip:
+        description: "Address of the MTProto server to hardcode. Empty = the built-in one."
+        required: false
+        default: ""
+        type: string
+      dc_port:
+        description: "Port of the MTProto server. Empty = the built-in one."
+        required: false
+        default: ""
+        type: string
+      lock_dc_options:
+        description: "Ignore the DC list the server reports in help.getConfig."
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
   push:
     branches:
       - custom-server
@@ -25,12 +48,53 @@ jobs:
     env:
       PREPARE_PATH: "Telegram/build/prepare/prepare.py"
       REPO_DIR: tdesktop
+      # The fallback compiled into mtproto_dc_options.cpp, used when the
+      # dispatch form leaves the address empty (and always on push builds).
+      DC_IP_DEFAULT: "84.21.173.237"
+      DC_PORT_DEFAULT: "20443"
 
     defaults:
       run:
         shell: cmd
 
     steps:
+      - name: Read the server address.
+        shell: bash
+        env:
+          DC_IP_INPUT: ${{ inputs.dc_ip }}
+          DC_PORT_INPUT: ${{ inputs.dc_port }}
+          DC_LOCK_INPUT: ${{ inputs.lock_dc_options }}
+        run: |
+          set -euo pipefail
+
+          DC_IP="$(printf '%s' "${DC_IP_INPUT:-$DC_IP_DEFAULT}" | tr -d '[:space:]')"
+          DC_PORT="$(printf '%s' "${DC_PORT_INPUT:-$DC_PORT_DEFAULT}" | tr -d '[:space:]')"
+
+          if ! printf '%s' "$DC_IP" | grep -Eq '^[0-9A-Za-z._:-]+$'; then
+            echo "::error::dc_ip '$DC_IP' is not a plain IPv4/IPv6 address or hostname."
+            exit 1
+          fi
+          if ! printf '%s' "$DC_PORT" | grep -Eq '^[0-9]+$' \
+            || [ "$DC_PORT" -lt 1 ] || [ "$DC_PORT" -gt 65535 ]; then
+            echo "::error::dc_port '$DC_PORT' is not a number from 1 to 65535."
+            exit 1
+          fi
+
+          DC_LOCK_DEFINE=""
+          if [ "${DC_LOCK_INPUT:-false}" = "true" ]; then
+            DC_LOCK_DEFINE="-D TDESKTOP_CUSTOM_DC_LOCK=ON"
+          fi
+
+          echo "DC_IP=$DC_IP" >> "$GITHUB_ENV"
+          echo "DC_PORT=$DC_PORT" >> "$GITHUB_ENV"
+          echo "DC_LOCK_DEFINE=$DC_LOCK_DEFINE" >> "$GITHUB_ENV"
+          {
+            echo "### MTProto server baked into this build"
+            echo ""
+            echo "- Address: \`$DC_IP:$DC_PORT\`"
+            echo "- help.getConfig DC list: $([ -n "$DC_LOCK_DEFINE" ] && echo ignored || echo honoured)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Checkout.
         uses: actions/checkout@v4
         with:
@@ -181,8 +245,13 @@ jobs:
           -D CMAKE_CONFIGURATION_TYPES=Release ^
           -D CMAKE_MSVC_DEBUG_INFORMATION_FORMAT= ^
           -D DESKTOP_APP_DISABLE_AUTOUPDATE=ON ^
-          -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON
+          -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON ^
+          -D TDESKTOP_CUSTOM_DC_IP=%DC_IP% ^
+          -D TDESKTOP_CUSTOM_DC_PORT=%DC_PORT% %DC_LOCK_DEFINE%
           if errorlevel 1 exit /b 1
+          rem The server address comes from the dispatch form (see the first
+          rem step); an empty one falls back to the constants in
+          rem mtproto_dc_options.cpp.
           rem Debug info is off on purpose: cl gets no /Zi and link gets no
           rem /DEBUG, so no multi-gigabyte Telegram.pdb is generated. Crash
           rem reports are disabled anyway, and building that PDB is what pushed
@@ -230,9 +299,22 @@ jobs:
           test -f "$REPO_DIR/out/Release/Telegram.exe"
           ls -lh "$REPO_DIR/out/Release/Telegram.exe"
 
+          # The whole point of this build: the address has to be inside the
+          # binary, otherwise it silently connects somewhere else.
+          if grep -aqF "$DC_IP" "$REPO_DIR/out/Release/Telegram.exe"; then
+            echo "$DC_IP is baked into Telegram.exe."
+            echo "### Verified: \`$DC_IP:$DC_PORT\` is inside the binary" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::$DC_IP is not found in Telegram.exe, the build is not what was asked for."
+            exit 1
+          fi
+
+          mkdir -p artifact
+          printf '%s:%s\n' "$DC_IP" "$DC_PORT" > artifact/DC_ADDRESS.txt
+
       - name: Move artifact.
         run: |
-          mkdir artifact
+          if not exist artifact mkdir artifact
           move %REPO_DIR%\out\Release\Telegram.exe artifact\
 
       - uses: actions/upload-artifact@v4

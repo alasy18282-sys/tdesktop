@@ -9,6 +9,48 @@ option(TDESKTOP_BUILD_UPDATE_TESTS "Build the focused update verification test."
 set(TDESKTOP_API_ID "0" CACHE STRING "Provide 'api_id' for the Telegram API access.")
 set(TDESKTOP_API_HASH "" CACHE STRING "Provide 'api_hash' for the Telegram API access.")
 
+# The custom MTProto server every DC id is mapped to, see
+# SourceFiles/mtproto/mtproto_dc_options.cpp. Leaving the address empty keeps
+# the fallback compiled into that file.
+set(TDESKTOP_CUSTOM_DC_IP "" CACHE STRING "Address of the custom MTProto server.")
+set(TDESKTOP_CUSTOM_DC_PORT "" CACHE STRING "Port of the custom MTProto server.")
+option(TDESKTOP_CUSTOM_DC_LOCK "Ignore the DC list the server reports in help.getConfig." OFF)
+
+if (NOT TDESKTOP_CUSTOM_DC_IP STREQUAL "")
+    if (TDESKTOP_CUSTOM_DC_IP MATCHES "[^0-9A-Za-z.:_-]")
+        message(FATAL_ERROR
+        " \n"
+        " TDESKTOP_CUSTOM_DC_IP must be a plain IPv4/IPv6 address or a hostname,\n"
+        " got '${TDESKTOP_CUSTOM_DC_IP}'.\n"
+        " ")
+    endif()
+    target_compile_definitions(Telegram PRIVATE
+        TDESKTOP_CUSTOM_DC_IP="${TDESKTOP_CUSTOM_DC_IP}"
+    )
+    message(STATUS "Custom server address: ${TDESKTOP_CUSTOM_DC_IP}")
+endif()
+
+if (NOT TDESKTOP_CUSTOM_DC_PORT STREQUAL "")
+    if (NOT TDESKTOP_CUSTOM_DC_PORT MATCHES "^[0-9]+$"
+        OR TDESKTOP_CUSTOM_DC_PORT LESS 1
+        OR TDESKTOP_CUSTOM_DC_PORT GREATER 65535)
+        message(FATAL_ERROR
+        " \n"
+        " TDESKTOP_CUSTOM_DC_PORT must be a number from 1 to 65535,\n"
+        " got '${TDESKTOP_CUSTOM_DC_PORT}'.\n"
+        " ")
+    endif()
+    target_compile_definitions(Telegram PRIVATE
+        TDESKTOP_CUSTOM_DC_PORT=${TDESKTOP_CUSTOM_DC_PORT}
+    )
+    message(STATUS "Custom server port: ${TDESKTOP_CUSTOM_DC_PORT}")
+endif()
+
+if (TDESKTOP_CUSTOM_DC_LOCK)
+    target_compile_definitions(Telegram PRIVATE TDESKTOP_CUSTOM_DC_LOCK)
+    message(STATUS "Custom server: the DC list from help.getConfig is ignored.")
+endif()
+
 if (TDESKTOP_API_TEST)
     set(TDESKTOP_API_ID 17349)
     set(TDESKTOP_API_HASH 344583e45741c457fe1862106095a5eb)

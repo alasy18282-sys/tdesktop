@@ -33,19 +33,36 @@ struct BuiltInDc {
 //
 // Every DC id is mapped to the same single custom server, so that whichever
 // DC id the server reports back through help.getConfig the client still talks
-// to the same host. Change kCustomServerIp / kCustomServerPort if the server
-// moves. IPv6 endpoints are intentionally removed: the custom server has no
-// IPv6 listener and probing it only adds connect timeouts.
+// to the same host. IPv6 endpoints are intentionally removed: the custom
+// server has no IPv6 listener and probing it only adds connect timeouts.
+//
+// The address is set at configure time, so the same sources build any server:
+//   -D TDESKTOP_CUSTOM_DC_IP=1.2.3.4 -D TDESKTOP_CUSTOM_DC_PORT=20443
+// The values below are only the fallback for a build that sets none of them.
 // ---------------------------------------------------------------------------
-constexpr auto kCustomServerIp = "84.21.173.237";
-constexpr auto kCustomServerPort = 20443;
+#ifndef TDESKTOP_CUSTOM_DC_IP
+#define TDESKTOP_CUSTOM_DC_IP "84.21.173.237"
+#endif // TDESKTOP_CUSTOM_DC_IP
+#ifndef TDESKTOP_CUSTOM_DC_PORT
+#define TDESKTOP_CUSTOM_DC_PORT 20443
+#endif // TDESKTOP_CUSTOM_DC_PORT
+
+constexpr auto kCustomServerIp = TDESKTOP_CUSTOM_DC_IP;
+constexpr auto kCustomServerPort = int(TDESKTOP_CUSTOM_DC_PORT);
 
 // When true the DC list received from the server (help.getConfig) is ignored
 // and the client always stays on kCustomServerIp. Enable this if the server
 // answers with Telegram's real DC addresses (some proxy-based forks do that)
 // and the client keeps "jumping" back to Telegram servers. Keep it false when
 // the server hands out its own media/upload DCs - those would be lost.
-constexpr bool kLockDcOptions = false;
+//
+// Set with -D TDESKTOP_CUSTOM_DC_LOCK=ON.
+constexpr bool kLockDcOptions =
+#ifdef TDESKTOP_CUSTOM_DC_LOCK
+	true;
+#else // TDESKTOP_CUSTOM_DC_LOCK
+	false;
+#endif // TDESKTOP_CUSTOM_DC_LOCK
 
 const BuiltInDc kBuiltInDcs[] = {
 	{ 1, kCustomServerIp, kCustomServerPort },
