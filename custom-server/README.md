@@ -8,7 +8,8 @@
 
 | Файл | Изменение |
 |---|---|
-| `Telegram/SourceFiles/mtproto/mtproto_dc_options.cpp` | `kBuiltInDcs` — все DC (1–5) указывают на `84.21.173.237:20443`. IPv6-эндпоинты Telegram удалены. `kPublicRSAKeys` и `kTestPublicRSAKeys` — публичный ключ сервера (fingerprint `0x1a47636d1496dcc5`). Добавлен флаг `kLockDcOptions`. |
+| `Telegram/SourceFiles/mtproto/mtproto_dc_options.cpp` | `kBuiltInDcs` — все DC (1–5) указывают на адрес своего сервера (по умолчанию `84.21.173.237:20443`, задаётся при сборке). IPv6-эндпоинты Telegram удалены. `kPublicRSAKeys` и `kTestPublicRSAKeys` — публичный ключ сервера (fingerprint `0x1a47636d1496dcc5`). Добавлен флаг `kLockDcOptions`. |
+| `Telegram/cmake/telegram_options.cmake`, `Telegram/cmake/custom_dc_config.h.in` | Адрес сервера как параметр сборки: `TDESKTOP_CUSTOM_DC_IP`, `TDESKTOP_CUSTOM_DC_PORT`, `TDESKTOP_CUSTOM_DC_LOCK` → сгенерированный `out/custom_dc_config.h`. |
 | `Telegram/SourceFiles/core/version.h` | `AppName` → `PlumeGram Desktop` (своя папка данных `%APPDATA%\PlumeGram Desktop`, не конфликтует с установленным Telegram), `AppId` → свой GUID (свой single-instance и группа на панели задач). |
 | `.github/workflows/custom-windows.yml` | Сборка Release x64 в GitHub Actions с выгрузкой `Telegram.exe`. |
 
@@ -195,19 +196,24 @@ prepare сам снесёт и `qt_6.11.2`, и `Qt-6.11.2` (у каждого с
 
 ## Сменить IP / порт / ключ
 
-Всё в одном месте — `Telegram/SourceFiles/mtproto/mtproto_dc_options.cpp`:
-
-```cpp
-constexpr auto kCustomServerIp = "84.21.173.237";
-constexpr auto kCustomServerPort = 20443;
-constexpr bool kLockDcOptions = false;   // true = игнорировать DC из help.getConfig
-```
-
-После правки — пересобрать. Проверить консистентность патча:
+Адрес задаётся на этапе configure и пишется в сгенерированный
+`out/custom_dc_config.h` (шаблон — `Telegram/cmake/custom_dc_config.h.in`):
 
 ```
-python custom-server\tools\verify_patch.py --source E:\tdesktop --key E:\keys\server_rsa.key --ip 84.21.173.237 --port 20443
+configure.bat x64 -D TDESKTOP_CUSTOM_DC_IP=1.2.3.4 -D TDESKTOP_CUSTOM_DC_PORT=20443
 ```
+
+Пусто = значения по умолчанию из `Telegram/cmake/telegram_options.cmake`
+(`84.21.173.237:20443`). `-D TDESKTOP_CUSTOM_DC_LOCK=ON` — игнорировать DC из
+`help.getConfig` (`kLockDcOptions`).
+
+В Actions то же самое — форма *Custom server build.* (`dc_ip`, `dc_port`,
+`lock_dc_options`). Сборка проверяет, что адрес реально лёг в бинарник, и падает,
+если нет; итоговый адрес печатается в summary запуска.
+
+Ключ (`kPublicRSAKeys` / `kTestPublicRSAKeys`) по-прежнему живёт в
+`mtproto_dc_options.cpp` — fingerprint `0x1a47636d1496dcc5`, меняется только
+пересборкой.
 
 Без пересборки можно поменять только адреса — файлом `.tdesktop-endpoints` рядом с exe
 (пример: `custom-server/tdesktop-endpoints.example`). Ключ всё равно живёт в бинарнике.

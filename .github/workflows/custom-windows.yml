@@ -8,7 +8,9 @@ name: Custom server build.
 #
 # The server address is an input: leave the fields empty to build the address
 # compiled into Telegram/SourceFiles/mtproto/mtproto_dc_options.cpp (the values
-# below in DC_IP_DEFAULT / DC_PORT_DEFAULT, keep them in sync with it).
+# below in DC_IP_DEFAULT / DC_PORT_DEFAULT, keep them in sync with the
+# TDESKTOP_CUSTOM_DC_IP_DEFAULT / TDESKTOP_CUSTOM_DC_PORT_DEFAULT of
+# Telegram/cmake/telegram_options.cmake, which is what really sets them).
 
 on:
   workflow_dispatch:
@@ -48,8 +50,8 @@ jobs:
     env:
       PREPARE_PATH: "Telegram/build/prepare/prepare.py"
       REPO_DIR: tdesktop
-      # The fallback compiled into mtproto_dc_options.cpp, used when the
-      # dispatch form leaves the address empty (and always on push builds).
+      # The fallback used when the dispatch form leaves the address empty (and
+      # always on push builds), mirrors telegram_options.cmake.
       DC_IP_DEFAULT: "84.21.173.237"
       DC_PORT_DEFAULT: "20443"
 
@@ -238,6 +240,7 @@ jobs:
 
       - name: Configure.
         run: |
+          echo Configuring the custom server as %DC_IP%:%DC_PORT%
           cd %REPO_DIR%\Telegram
           call configure.bat x64 ^
           -D TDESKTOP_API_ID=2040 ^
@@ -259,6 +262,37 @@ jobs:
           rem Reported as an annotation so it is visible without the log dump.
           for /f "delims=" %%i in ('findstr /C:"GenerateDebugInformation" "%GITHUB_WORKSPACE%\%REPO_DIR%\out\Telegram\Telegram.vcxproj"') do echo ::notice title=DebugInfo::%%i
           exit /b 0
+
+      # Fail in a couple of minutes instead of two hours later. The address used
+      # to be passed as a -D macro with a quoted string value, and it got lost
+      # somewhere between cmd, configure.py, cmake and msbuild: the client kept
+      # the compiled-in fallback while the dispatch form said otherwise. Now
+      # configure_file writes the literal into a header, and this step proves
+      # the header holds exactly what was asked for.
+      - name: Check the address reached the build.
+        shell: bash
+        run: |
+          echo "--- CMake cache ---"
+          grep -a "TDESKTOP_CUSTOM_DC" "$REPO_DIR/out/CMakeCache.txt" || true
+          echo "--- generated header ---"
+          cat "$REPO_DIR/out/custom_dc_config.h" || true
+          echo "--- compiler include paths ---"
+          grep -ao '<AdditionalIncludeDirectories>[^<]*' \
+            "$REPO_DIR/out/Telegram/Telegram.vcxproj" | head -2 || true
+
+          if [ ! -f "$REPO_DIR/out/custom_dc_config.h" ]; then
+            echo "::error::custom_dc_config.h was not generated, telegram_options.cmake did not run."
+            exit 1
+          fi
+          if ! grep -aqF "\"$DC_IP\"" "$REPO_DIR/out/custom_dc_config.h"; then
+            echo "::error::the generated header does not carry $DC_IP, refusing to spend two hours on the wrong build."
+            exit 1
+          fi
+          if ! grep -aqE "^#define TDESKTOP_CUSTOM_DC_PORT +$DC_PORT\$" "$REPO_DIR/out/custom_dc_config.h"; then
+            echo "::error::the generated header does not carry port $DC_PORT."
+            exit 1
+          fi
+          echo "$DC_IP:$DC_PORT is in the generated header."
 
       # The runner's paging file is small and fixed, so the whole job has a hard
       # commit limit. When it is reached the compiler reports:
@@ -295,20 +329,38 @@ jobs:
       - name: Verify build output.
         shell: bash
         run: |
+          EXE="$REPO_DIR/out/Release/Telegram.exe"
           ls -la "$REPO_DIR/out/Release" | head -40
-          test -f "$REPO_DIR/out/Release/Telegram.exe"
-          ls -lh "$REPO_DIR/out/Release/Telegram.exe"
+          test -f "$EXE"
+          ls -lh "$EXE"
 
           # The whole point of this build: the address has to be inside the
-          # binary, otherwise it silently connects somewhere else.
-          if grep -aqF "$DC_IP" "$REPO_DIR/out/Release/Telegram.exe"; then
-            echo "$DC_IP is baked into Telegram.exe."
-            echo "### Verified: \`$DC_IP:$DC_PORT\` is inside the binary" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "::error::$DC_IP is not found in Telegram.exe, the build is not what was asked for."
+          # binary, otherwise it silently connects somewhere else. The bytes are
+          # counted in python on purpose -- grep has its own opinion about
+          # binary files, and a wrong verdict here costs two hours of build.
+          cat > check_ip.py <<'PY'
+          import re, sys
+
+          path, ip = sys.argv[1], sys.argv[2]
+          data = open(path, 'rb').read()
+          hits = data.count(ip.encode())
+
+          print(f'{ip} appears {hits} time(s) in {path}')
+          if hits == 0:
+              found = sorted(set(re.findall(rb'(?:\d{1,3}\.){3}\d{1,3}', data)))
+              print('IPv4 addresses that are present instead:')
+              for item in found[:20]:
+                  print('   ', item.decode())
+              sys.exit(1)
+          PY
+
+          if command -v python >/dev/null 2>&1; then PY=python; else PY=py; fi
+          if ! "$PY" check_ip.py "$EXE" "$DC_IP"; then
+            echo "::error::$DC_IP is not in Telegram.exe, the build is not what was asked for."
             exit 1
           fi
 
+          echo "### Verified: \`$DC_IP:$DC_PORT\` is inside the binary" >> "$GITHUB_STEP_SUMMARY"
           mkdir -p artifact
           printf '%s:%s\n' "$DC_IP" "$DC_PORT" > artifact/DC_ADDRESS.txt
 

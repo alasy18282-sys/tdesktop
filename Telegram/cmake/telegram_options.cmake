@@ -10,41 +10,51 @@ set(TDESKTOP_API_ID "0" CACHE STRING "Provide 'api_id' for the Telegram API acce
 set(TDESKTOP_API_HASH "" CACHE STRING "Provide 'api_hash' for the Telegram API access.")
 
 # The custom MTProto server every DC id is mapped to, see
-# SourceFiles/mtproto/mtproto_dc_options.cpp. Leaving the address empty keeps
-# the fallback compiled into that file.
+# SourceFiles/mtproto/mtproto_dc_options.cpp.
+#
+# The address is written into a generated header instead of being passed with
+# -D: a macro with a quoted string value has to survive cmd -> configure.py ->
+# cmake -> msbuild -> cl, and every one of them has its own idea of quoting.
+# configure_file writes the literal once, so what lands in the binary is
+# exactly what was asked for.
+set(TDESKTOP_CUSTOM_DC_IP_DEFAULT "84.21.173.237")
+set(TDESKTOP_CUSTOM_DC_PORT_DEFAULT "20443")
+
 set(TDESKTOP_CUSTOM_DC_IP "" CACHE STRING "Address of the custom MTProto server.")
 set(TDESKTOP_CUSTOM_DC_PORT "" CACHE STRING "Port of the custom MTProto server.")
 option(TDESKTOP_CUSTOM_DC_LOCK "Ignore the DC list the server reports in help.getConfig." OFF)
 
-if (NOT TDESKTOP_CUSTOM_DC_IP STREQUAL "")
-    if (TDESKTOP_CUSTOM_DC_IP MATCHES "[^0-9A-Za-z.:_-]")
-        message(FATAL_ERROR
-        " \n"
-        " TDESKTOP_CUSTOM_DC_IP must be a plain IPv4/IPv6 address or a hostname,\n"
-        " got '${TDESKTOP_CUSTOM_DC_IP}'.\n"
-        " ")
-    endif()
-    target_compile_definitions(Telegram PRIVATE
-        TDESKTOP_CUSTOM_DC_IP="${TDESKTOP_CUSTOM_DC_IP}"
-    )
-    message(STATUS "Custom server address: ${TDESKTOP_CUSTOM_DC_IP}")
+if (TDESKTOP_CUSTOM_DC_IP STREQUAL "")
+    set(TDESKTOP_CUSTOM_DC_IP "${TDESKTOP_CUSTOM_DC_IP_DEFAULT}")
+endif()
+if (TDESKTOP_CUSTOM_DC_IP MATCHES "[^0-9A-Za-z.:_-]")
+    message(FATAL_ERROR
+    " \n"
+    " TDESKTOP_CUSTOM_DC_IP must be a plain IPv4/IPv6 address or a hostname,\n"
+    " got '${TDESKTOP_CUSTOM_DC_IP}'.\n"
+    " ")
 endif()
 
-if (NOT TDESKTOP_CUSTOM_DC_PORT STREQUAL "")
-    if (NOT TDESKTOP_CUSTOM_DC_PORT MATCHES "^[0-9]+$"
-        OR TDESKTOP_CUSTOM_DC_PORT LESS 1
-        OR TDESKTOP_CUSTOM_DC_PORT GREATER 65535)
-        message(FATAL_ERROR
-        " \n"
-        " TDESKTOP_CUSTOM_DC_PORT must be a number from 1 to 65535,\n"
-        " got '${TDESKTOP_CUSTOM_DC_PORT}'.\n"
-        " ")
-    endif()
-    target_compile_definitions(Telegram PRIVATE
-        TDESKTOP_CUSTOM_DC_PORT=${TDESKTOP_CUSTOM_DC_PORT}
-    )
-    message(STATUS "Custom server port: ${TDESKTOP_CUSTOM_DC_PORT}")
+if (TDESKTOP_CUSTOM_DC_PORT STREQUAL "")
+    set(TDESKTOP_CUSTOM_DC_PORT "${TDESKTOP_CUSTOM_DC_PORT_DEFAULT}")
 endif()
+if (NOT TDESKTOP_CUSTOM_DC_PORT MATCHES "^[0-9]+$"
+    OR TDESKTOP_CUSTOM_DC_PORT LESS 1
+    OR TDESKTOP_CUSTOM_DC_PORT GREATER 65535)
+    message(FATAL_ERROR
+    " \n"
+    " TDESKTOP_CUSTOM_DC_PORT must be a number from 1 to 65535,\n"
+    " got '${TDESKTOP_CUSTOM_DC_PORT}'.\n"
+    " ")
+endif()
+
+configure_file(
+    "${CMAKE_CURRENT_LIST_DIR}/custom_dc_config.h.in"
+    "${CMAKE_BINARY_DIR}/custom_dc_config.h"
+@ONLY)
+target_include_directories(Telegram PRIVATE "${CMAKE_BINARY_DIR}")
+
+message(STATUS "Custom MTProto server: ${TDESKTOP_CUSTOM_DC_IP}:${TDESKTOP_CUSTOM_DC_PORT}")
 
 if (TDESKTOP_CUSTOM_DC_LOCK)
     target_compile_definitions(Telegram PRIVATE TDESKTOP_CUSTOM_DC_LOCK)
