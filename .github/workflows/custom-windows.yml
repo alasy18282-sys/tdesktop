@@ -280,15 +280,20 @@ jobs:
           grep -ao '<AdditionalIncludeDirectories>[^<]*' \
             "$REPO_DIR/out/Telegram/Telegram.vcxproj" | head -2 || true
 
-          if [ ! -f "$REPO_DIR/out/custom_dc_config.h" ]; then
+          HEADER="$REPO_DIR/out/custom_dc_config.h"
+          if [ ! -f "$HEADER" ]; then
             echo "::error::custom_dc_config.h was not generated, telegram_options.cmake did not run."
             exit 1
           fi
-          if ! grep -aqF "\"$DC_IP\"" "$REPO_DIR/out/custom_dc_config.h"; then
+
+          # The checkout is CRLF (core.autocrlf on Windows) and configure_file
+          # copies the line endings as they are, so compare on a clean copy.
+          tr -d '\r' < "$HEADER" > header.clean
+          if ! grep -qF "\"$DC_IP\"" header.clean; then
             echo "::error::the generated header does not carry $DC_IP, refusing to spend two hours on the wrong build."
             exit 1
           fi
-          if ! grep -aqE "^#define TDESKTOP_CUSTOM_DC_PORT +$DC_PORT\$" "$REPO_DIR/out/custom_dc_config.h"; then
+          if ! grep -qE "^#define TDESKTOP_CUSTOM_DC_PORT +$DC_PORT\$" header.clean; then
             echo "::error::the generated header does not carry port $DC_PORT."
             exit 1
           fi
