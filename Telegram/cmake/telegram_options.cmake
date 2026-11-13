@@ -52,12 +52,19 @@ configure_file(
     "${CMAKE_CURRENT_LIST_DIR}/custom_dc_config.h.in"
     "${CMAKE_BINARY_DIR}/custom_dc_config.h"
 @ONLY)
-target_include_directories(Telegram PRIVATE "${CMAKE_BINARY_DIR}")
+
+# Directory scope, not target scope: mtproto_dc_options.cpp is compiled into the
+# td_mtproto object library (see cmake/td_mtproto.cmake), not into the Telegram
+# executable, so anything set on the Telegram target never reaches it. That is
+# what kept the compiled-in fallback in the binary while the build log said
+# otherwise. Both calls below land on every target created after this file is
+# included, td_mtproto among them.
+include_directories("${CMAKE_BINARY_DIR}")
 
 message(STATUS "Custom MTProto server: ${TDESKTOP_CUSTOM_DC_IP}:${TDESKTOP_CUSTOM_DC_PORT}")
 
 if (TDESKTOP_CUSTOM_DC_LOCK)
-    target_compile_definitions(Telegram PRIVATE TDESKTOP_CUSTOM_DC_LOCK)
+    add_compile_definitions(TDESKTOP_CUSTOM_DC_LOCK)
     message(STATUS "Custom server: the DC list from help.getConfig is ignored.")
 endif()
 

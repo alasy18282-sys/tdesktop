@@ -278,11 +278,20 @@ jobs:
           cat "$REPO_DIR/out/custom_dc_config.h" || true
           echo "--- compiler include paths ---"
           grep -ao '<AdditionalIncludeDirectories>[^<]*' \
-            "$REPO_DIR/out/Telegram/Telegram.vcxproj" | head -2 || true
+            "$REPO_DIR/out/Telegram/td_mtproto.vcxproj" | head -2 || true
 
           HEADER="$REPO_DIR/out/custom_dc_config.h"
           if [ ! -f "$HEADER" ]; then
             echo "::error::custom_dc_config.h was not generated, telegram_options.cmake did not run."
+            exit 1
+          fi
+
+          # The mtproto sources live in the td_mtproto object library, so the
+          # include path has to be there and not on the Telegram executable.
+          # Missing it means the compiler never sees the generated header.
+          if ! grep -aq 'AdditionalIncludeDirectories>[^<]*[\\/]out' \
+            "$REPO_DIR/out/Telegram/td_mtproto.vcxproj"; then
+            echo "::error::td_mtproto has no build directory in its include path, it would not see custom_dc_config.h."
             exit 1
           fi
 
