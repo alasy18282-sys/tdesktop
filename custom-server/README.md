@@ -1,14 +1,14 @@
 # PlumeGram Desktop — сборка Telegram Desktop под свой MTProto-сервер
 
 Форк [telegramdesktop/tdesktop](https://github.com/telegramdesktop/tdesktop) (ветка `custom-server`),
-в котором вместо серверов Telegram вшит собственный сервер `84.21.173.237:20443`
+в котором вместо серверов Telegram вшит собственный сервер `177.202.67.63:20443`
 и RSA-ключ этого сервера.
 
 ## Что именно изменено
 
 | Файл | Изменение |
 |---|---|
-| `Telegram/SourceFiles/mtproto/mtproto_dc_options.cpp` | `kBuiltInDcs` — все DC (1–5) указывают на адрес своего сервера (по умолчанию `84.21.173.237:20443`, задаётся при сборке). IPv6-эндпоинты Telegram удалены. `kPublicRSAKeys` и `kTestPublicRSAKeys` — публичный ключ сервера (fingerprint `0x1a47636d1496dcc5`). Добавлен флаг `kLockDcOptions`. |
+| `Telegram/SourceFiles/mtproto/mtproto_dc_options.cpp` | `kBuiltInDcs` — все DC (1–5) указывают на адрес своего сервера (по умолчанию `177.202.67.63:20443`, задаётся при сборке). IPv6-эндпоинты Telegram удалены. `kPublicRSAKeys` и `kTestPublicRSAKeys` — публичный ключ сервера (fingerprint `0x1a47636d1496dcc5`). Добавлен флаг `kLockDcOptions`. |
 | `Telegram/cmake/telegram_options.cmake`, `Telegram/cmake/custom_dc_config.h.in` | Адрес сервера как параметр сборки: `TDESKTOP_CUSTOM_DC_IP`, `TDESKTOP_CUSTOM_DC_PORT`, `TDESKTOP_CUSTOM_DC_LOCK` → сгенерированный `out/custom_dc_config.h`. |
 | `Telegram/SourceFiles/core/version.h` | `AppName` → `PlumeGram Desktop` (своя папка данных `%APPDATA%\PlumeGram Desktop`, не конфликтует с установленным Telegram), `AppId` → свой GUID (свой single-instance и группа на панели задач). |
 | `.github/workflows/custom-windows.yml` | Сборка Release x64 в GitHub Actions с выгрузкой `Telegram.exe`. |
@@ -204,7 +204,7 @@ configure.bat x64 -D TDESKTOP_CUSTOM_DC_IP=1.2.3.4 -D TDESKTOP_CUSTOM_DC_PORT=20
 ```
 
 Пусто = значения по умолчанию из `Telegram/cmake/telegram_options.cmake`
-(`84.21.173.237:20443`). `-D TDESKTOP_CUSTOM_DC_LOCK=ON` — игнорировать DC из
+(`177.202.67.63:20443`). `-D TDESKTOP_CUSTOM_DC_LOCK=ON` — игнорировать DC из
 `help.getConfig` (`kLockDcOptions`).
 
 В Actions то же самое — форма *Custom server build.* (`dc_ip`, `dc_port`,
@@ -254,8 +254,8 @@ configure.bat x64 -D TDESKTOP_CUSTOM_DC_IP=1.2.3.4 -D TDESKTOP_CUSTOM_DC_PORT=20
 Диагностика (запускать там, где сервер точно доступен):
 
 ```
-python custom-server\tools\probe_mtproto.py --host 84.21.173.237 --ports 20443 --keys E:\keys
-python custom-server\tools\probe_mtproto.py --host 84.21.173.237 --ports 1-65535 --scan
+python custom-server\tools\probe_mtproto.py --host 177.202.67.63 --ports 20443 --keys E:\keys
+python custom-server\tools\probe_mtproto.py --host 177.202.67.63 --ports 1-65535 --scan
 ```
 
 Если сервер ответит `resPQ`, скрипт напечатает отпечатки ключей — сразу видно,

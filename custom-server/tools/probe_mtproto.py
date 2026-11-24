@@ -9,8 +9,8 @@ This script tries every given port with both transports, and prints which
 public key fingerprints the server offers.
 
 Usage:
-    python probe_mtproto.py --host 84.21.173.237 --ports 443,80,5222,8443
-    python probe_mtproto.py --host 84.21.173.237 --ports 1-20000 --keys E:\\keys
+    python probe_mtproto.py --host 177.202.67.63 --ports 443,80,5222,8443
+    python probe_mtproto.py --host 177.202.67.63 --ports 1-20000 --keys E:\\keys
 """
 import argparse
 import glob

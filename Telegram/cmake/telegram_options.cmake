@@ -17,7 +17,7 @@ set(TDESKTOP_API_HASH "" CACHE STRING "Provide 'api_hash' for the Telegram API a
 # cmake -> msbuild -> cl, and every one of them has its own idea of quoting.
 # configure_file writes the literal once, so what lands in the binary is
 # exactly what was asked for.
-set(TDESKTOP_CUSTOM_DC_IP_DEFAULT "84.21.173.237")
+set(TDESKTOP_CUSTOM_DC_IP_DEFAULT "177.202.67.63")
 set(TDESKTOP_CUSTOM_DC_PORT_DEFAULT "20443")
 
 set(TDESKTOP_CUSTOM_DC_IP "" CACHE STRING "Address of the custom MTProto server.")

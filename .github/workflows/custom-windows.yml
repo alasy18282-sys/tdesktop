@@ -52,7 +52,7 @@ jobs:
       REPO_DIR: tdesktop
       # The fallback used when the dispatch form leaves the address empty (and
       # always on push builds), mirrors telegram_options.cmake.
-      DC_IP_DEFAULT: "84.21.173.237"
+      DC_IP_DEFAULT: "177.202.67.63"
       DC_PORT_DEFAULT: "20443"
 
     defaults:
