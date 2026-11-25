@@ -55,6 +55,8 @@ PRIVATE
 target_include_directories(td_mtproto
 PUBLIC
     ${src_loc}
+PRIVATE
+    ${CMAKE_BINARY_DIR}
 )
 
 target_link_libraries(td_mtproto
