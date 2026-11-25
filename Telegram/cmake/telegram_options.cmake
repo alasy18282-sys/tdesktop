@@ -53,13 +53,9 @@ configure_file(
     "${CMAKE_BINARY_DIR}/custom_dc_config.h"
 @ONLY)
 
-# Directory scope, not target scope: mtproto_dc_options.cpp is compiled into the
-# td_mtproto object library (see cmake/td_mtproto.cmake), not into the Telegram
-# executable, so anything set on the Telegram target never reaches it. That is
-# what kept the compiled-in fallback in the binary while the build log said
-# otherwise. Both calls below land on every target created after this file is
-# included, td_mtproto among them.
-include_directories("${CMAKE_BINARY_DIR}")
+# The generated header is visible to td_mtproto through a target-level include
+# in cmake/td_mtproto.cmake. include_directories() here would be a
+# directory-scope directive, which CMake 4 promotes to an error.
 
 message(STATUS "Custom MTProto server: ${TDESKTOP_CUSTOM_DC_IP}:${TDESKTOP_CUSTOM_DC_PORT}")
 
