@@ -308,6 +308,21 @@ jobs:
           fi
           echo "$DC_IP:$DC_PORT is in the generated header."
 
+      # The Telegram project is ~1500 translation units and CMake never sets
+      # /MP, so MSBuild compiles them one at a time. That is the whole reason a
+      # run needed 5h50m and died on the runner's 6h job limit with the last
+      # window/*.cpp still in flight. /MP2 on that single project halves it
+      # without the commit-limit blow-up that /m:4 caused: only two cl.exe hold
+      # the PCH at once, and only while this project is the one being built.
+      - name: Enable parallel compilation for the Telegram project.
+        shell: bash
+        run: |
+          set -euo pipefail
+          VCXPROJ="$REPO_DIR/out/Telegram/Telegram.vcxproj"
+          test -f "$VCXPROJ" || { echo "::error::$VCXPROJ is missing, configure did not produce it."; exit 1; }
+          python3 "$REPO_DIR/ci_enable_mp.py" "$VCXPROJ"
+          grep -c 'MultiProcessorCompilation' "$VCXPROJ"
+
       # The runner's paging file is small and fixed, so the whole job has a hard
       # commit limit. When it is reached the compiler reports:
       #
@@ -325,6 +340,7 @@ jobs:
       # Temp files go to D: as well: C: holds the paging file, and anything
       # written there makes it harder for Windows to grow it.
       - name: Build.
+        timeout-minutes: 300
         env:
           TMP: D:\tmp
           TEMP: D:\tmp
